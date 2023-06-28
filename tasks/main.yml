@@ -1,25 +1,110 @@
 # SPDX-License-Identifier: MIT
 ---
-- name: Set platform/version specific variables
-  include_tasks: tasks/set_vars.yml
-
-# Examples of some tasks:
 - name: Ensure required packages are installed
   package:
-    name: "{{ __template_packages }}"
+    name: '{{ __systemd_packages }}'
     state: present
 
-- name: Ensure required services are enabled and started
-  service:
-    name: "{{ item }}"
-    state: started
-    enabled: true
-  loop: "{{ __template_services }}"
-
-- name: Generate /etc/{{ __template_foo_config }}
+- name: Deploy required unit files
   template:
-    src: "{{ __template_foo_config }}.j2"
-    dest: /etc/{{ __template_foo_config }}
-    backup: true
-    mode: 0400
-  notify: Handler for template to restart services
+    src: '{{ item }}.j2'
+    dest: '{{ __admin_units_dir }}/{{ item }}'
+    owner: root
+    group: root
+    mode: '0644'
+  when: systemd_unit_files is defined
+  with_items:
+    - '{{ systemd_unit_files }}'
+
+- name: Create drop-in directories
+  file:
+    path: '{{ __admin_units_dir }}/{{ ".".join(item.split(".")[:-1]) }}.d/'
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  when: systemd_dropins is defined
+  with_items:
+    - '{{ systemd_dropins }}'
+
+- name: Deploy systemd drop in config
+  template:
+    src: '{{ item }}.j2'
+    dest: "{{ __admin_units_dir }}/\
+     {{ \".\".join(item.split(\".\")[:-1]) }}.d/\
+     99-override.conf"
+    owner: root
+    group: root
+    mode: '0644'
+  when: systemd_dropins is defined
+  with_items:
+    - '{{ systemd_dropins }}'
+
+- name: Reload systemd
+  systemd:
+    daemon_reload: true
+  when: systemd_unit_files is defined or systemd_dropins is defined
+
+- name: Ensure required units are started
+  systemd:
+    name: '{{ item }}'
+    state: started
+  when: systemd_started_units is defined
+  with_items:
+    - '{{ systemd_started_units }}'
+
+- name: Ensure required units are stopped
+  systemd:
+    name: '{{ item }}'
+    state: stopped
+  when: systemd_stopped_units is defined
+  with_items:
+    - '{{ systemd_stopped_units }}'
+
+- name: Ensure required units are restarted
+  systemd:
+    name: '{{ item }}'
+    state: restarted
+  when: systemd_restarted_units is defined
+  with_items:
+    - '{{ systemd_restarted_units }}'
+
+- name: Ensure required units are reloaded
+  systemd:
+    name: '{{ item }}'
+    state: reloaded
+  when: systemd_reloaded_units is defined
+  with_items:
+    - '{{ systemd_reloaded_units }}'
+
+- name: Ensure required units are enabled
+  systemd:
+    name: '{{ item }}'
+    enabled: true
+  when: systemd_enabled_units is defined
+  with_items:
+    - '{{ systemd_enabled_units }}'
+
+- name: Ensure required units are disabled
+  systemd:
+    name: '{{ item }}'
+    enabled: false
+  when: systemd_disabled_units is defined
+  with_items:
+    - '{{ systemd_disabled_units }}'
+
+- name: Ensure required units are masked
+  systemd:
+    name: '{{ item }}'
+    masked: true
+  when: systemd_masked_units is defined
+  with_items:
+    - '{{ systemd_masked_units }}'
+
+- name: Ensure required units are unmasked
+  systemd:
+    name: '{{ item }}'
+    masked: false
+  when: systemd_unmasked_units is defined
+  with_items:
+    - '{{ systemd_unmasked_units }}'
